@@ -66,6 +66,7 @@ def main():
     ])
 
     val_preprocess = CoCompose([
+        CoResize,
         CoCenterCrop,
         CoToTensor,
         CoNormalize
@@ -73,17 +74,12 @@ def main():
 
     mask_dataset = range(100)
 
-    # full_train_dataset = torchvision.datasets.VOCSegmentation(root=DATASET_PATH+'train', image_set="train", download=False, transforms=train_preprocess)
-
     if args.trainaug:
         full_train_dataset = VOCSegmentation(root=DATASET_PATH+'train', year="2012_aug", image_set="train", download=False, transforms=train_preprocess)
     else:
         full_train_dataset = VOCSegmentation(root=DATASET_PATH+'train', image_set="train", download=False, transforms=train_preprocess)
     sub_train_dataset = Subset(full_train_dataset, mask_dataset)
-
-    # sys.exit(0)
-
-    # full_val_dataset = torchvision.datasets.VOCSegmentation(root=DATASET_PATH+'val', image_set="val", download=False, transforms=val_preprocess)
+    
     full_val_dataset = VOCSegmentation(root=DATASET_PATH+'val', image_set="val", download=False, transforms=val_preprocess)
     sub_val_dataset = Subset(full_val_dataset, mask_dataset)
 
@@ -94,8 +90,8 @@ def main():
         train_dataset = full_train_dataset
         val_dataset = full_val_dataset
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     # train model
     deeplabv3_16 = ResNet50_DeepLabV3_16(num_classes=21)
