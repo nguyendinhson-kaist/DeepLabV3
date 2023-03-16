@@ -22,8 +22,8 @@ class CoRandomResized:
 
         new_w, new_h = int(w*s), int(h*s)
 
-        new_img = TF.resize(img, (new_h, new_w))
-        new_target = TF.resize(target, (new_h, new_w))
+        new_img = TF.resize(img, (new_h, new_w), interpolation=transforms.InterpolationMode.BILINEAR)
+        new_target = TF.resize(target, (new_h, new_w), interpolation=transforms.InterpolationMode.NEAREST)
 
         return new_img, new_target
     
@@ -85,6 +85,15 @@ def CoNormalize(img, target):
     """Normalize img using mean and std of imagenet dataset"""
     new_img = TF.normalize(img, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
     new_target = target
+    return new_img, new_target
+
+def CoResize(img, target):
+    """Resize image to a sepcific size"""
+    o_size = 513
+
+    new_img = TF.resize(img, size=o_size, interpolation=transforms.InterpolationMode.BILINEAR)
+    new_target = TF.resize(target, size=o_size, interpolation=transforms.InterpolationMode.NEAREST)
+
     return new_img, new_target
     
 class CoCompose:
