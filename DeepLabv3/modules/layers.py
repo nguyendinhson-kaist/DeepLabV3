@@ -18,6 +18,9 @@ class ResNet50_DeepLabV3_16(nn.Module):
                 if name != 'layer4':
                     for param in module.parameters():
                         param.requires_grad = False
+
+                # for param in module.parameters():
+                #     param.requires_grad = False
                 
                 m_dict[name] = module
 
