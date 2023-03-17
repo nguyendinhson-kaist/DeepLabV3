@@ -5,37 +5,43 @@ from torchvision.models import resnet50, ResNet50_Weights
 from collections import OrderedDict
 from typing import List
 
-class ResNet50_DeepLabV3_16(nn.Module):
-    def __init__(self, num_classes: int) -> None:
+class ResNet50_DeepLabV3(nn.Module):
+    def __init__(self, num_classes: int, output_stride=16) -> None:
         super().__init__()
+
+        assert output_stride in [8, 16], 'output stride must be 8 or 16'
 
         origin_resnet50 = resnet50(weights=ResNet50_Weights.DEFAULT)
         m_list = ['conv1', 'bn1', 'relu', 'maxpool', 'layer1', 'layer2', 'layer3', 'layer4']
         m_dict = OrderedDict()
         
+        train_block = ['layer3', 'layer4']
         for name, module in origin_resnet50.named_children():
             if name in m_list:
-                if name != 'layer4':
+                if name not in train_block:
                     for param in module.parameters():
                         param.requires_grad = False
-
-                # for param in module.parameters():
-                #     param.requires_grad = False
                 
                 m_dict[name] = module
 
+        last_blocks = ['layer4'] if output_stride == 16 else ['layer3', 'layer4']
 
-        last_block = m_dict['layer4']
+        for i, block_name in enumerate(last_blocks):
+            block = m_dict[block_name]
+            m_dict[block_name] = self.make_block(block, dilation_rate=2**(i+1))
 
-        for name, module in last_block.named_modules():
-            remove_stride = ['0.conv2', '0.downsample.0']
-            use_dilation = ['1.conv2', '2.conv2']
-            if name in remove_stride:
-                module.stride = (1,1)
 
-            if name in use_dilation:
-                module.padding = (2,2)
-                module.dilation = (2,2)
+        # last_block = m_dict['layer4']
+
+        # for name, module in last_block.named_modules():
+        #     remove_stride = ['0.conv2', '0.downsample.0']
+        #     use_dilation = ['1.conv2', '2.conv2']
+        #     if name in remove_stride:
+        #         module.stride = (1,1)
+
+        #     if name in use_dilation:
+        #         module.padding = (2,2)
+        #         module.dilation = (2,2)
 
         self.backbone = nn.Sequential(m_dict)
 
@@ -50,6 +56,27 @@ class ResNet50_DeepLabV3_16(nn.Module):
 
         result['out'] = scores
         return result
+    
+    def make_block(self, block, dilation_rate):
+        remove_stride = ['0.conv2', '0.downsample.0']
+
+        for name, module in block.named_modules():
+            if name in remove_stride:
+                module.stride = (1,1)
+            
+            if name == '0.conv2':
+                if dilation_rate == 2: # first block of last_blocks, don't add dilation
+                    continue
+                else:
+                    module.padding = (dilation_rate//2, dilation_rate//2)
+                    module.dilation = (dilation_rate//2, dilation_rate//2)
+                    continue
+            
+            if 'conv2' in name:
+                module.padding = (dilation_rate, dilation_rate)
+                module.dilation = (dilation_rate, dilation_rate)
+
+        return block
     
 class DeepLabHead(nn.Sequential):
     def __init__(self, in_channels: int, num_classes: int) -> None:

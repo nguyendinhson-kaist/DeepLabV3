@@ -8,9 +8,13 @@ from utils.solver import Solver
 from modules.layers import *
 import argparse
 import sys
+import thop
 
 def parse_args():
     parser = argparse.ArgumentParser()
+
+    parser.add_argument('output_stride', type=int, choices=[8,16],
+        help='output stride of model')
 
     parser.add_argument('-lr', '--learning-rate', type=float, default=1e-3,
         help='the learning rate')
@@ -79,7 +83,7 @@ def main():
     else:
         full_train_dataset = VOCSegmentation(root=DATASET_PATH+'train', image_set="train", download=False, transforms=train_preprocess)
     sub_train_dataset = Subset(full_train_dataset, mask_dataset)
-    
+
     full_val_dataset = VOCSegmentation(root=DATASET_PATH+'val', image_set="val", download=False, transforms=val_preprocess)
     sub_val_dataset = Subset(full_val_dataset, mask_dataset)
 
@@ -94,10 +98,10 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     # train model
-    deeplabv3_16 = ResNet50_DeepLabV3_16(num_classes=21)
-
+    deeplabv3 = ResNet50_DeepLabV3(num_classes=21, output_stride=args.output_stride)
+    
     solver = Solver(
-        deeplabv3_16, 
+        deeplabv3, 
         train_loader, 
         val_loader, 
         num_classes=21,

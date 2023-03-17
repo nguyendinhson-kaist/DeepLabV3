@@ -15,6 +15,8 @@ def parse_args():
 
     parser.add_argument('checkpoint', type=str, 
         help='your checkpoint (.pth) file. It should be: "out/.../*.pth"')
+    parser.add_argument('output_stride', type=int, choices=[8,16],
+        help='output stride of model')
     
     parser.add_argument('--gpu-id', type=int, default=0,
         help='select gpu if there are many gpus, be sure id is valid')
@@ -65,7 +67,7 @@ def test():
     print("Using",device)
 
     # load model
-    model = ResNet50_DeepLabV3_16(num_classes=21)
+    model = ResNet50_DeepLabV3(num_classes=21, output_stride=args.output_stride)
     model.load_state_dict(torch.load(args.checkpoint))
 
     # load val dataset
