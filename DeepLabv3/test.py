@@ -6,6 +6,8 @@ from utils.custom_transform import *
 from dataset import VOCSegmentation
 import torchvision.transforms.functional as TF
 
+from utils.metric import SemanticMetric
+
 import argparse
 
 torch.random.manual_seed(230)
@@ -25,40 +27,23 @@ def parse_args():
     return args
 
 def check_accuracy(model, num_classes, loader, device):
+        metric = SemanticMetric(num_classes=num_classes)
         model.to(device)
         model.eval()
 
         with torch.no_grad():
-            intersect = torch.zeros(num_classes, device=device)
-            union = torch.zeros(num_classes, device=device)
-
             for X, y in loader:
                 X = X.to(device=device, dtype=torch.float32)
-                y = y.to(device=device, dtype=torch.long)
-                out = model(X)['out'].argmax(1)
+                y = y.detach().numpy().astype(int)
 
-                void_mask = y == 255
-                out[void_mask] = 255
+                pred = model(X)['out'].detach().argmax(1).cpu().numpy().astype(int)
 
-                for i_class in range(num_classes):
-                    gt_mask = y == i_class
-                    gt = torch.zeros_like(y)
-                    gt[gt_mask] = 1.
+                # update metric
+                metric.update(y.flatten(), pred.flatten())
 
-                    out_mask = out == i_class
-                    pred = torch.zeros_like(out)
-                    pred[out_mask] = 1.
+            mIoU, iou = metric.get_results()
 
-                    intersect_batch = (gt*pred).sum()
-                    union_batch = (gt+pred).sum() - intersect_batch
-
-                    intersect[i_class] += intersect_batch
-                    union[i_class] += union_batch
-
-            union[union == 0] = 1e-7
-            iou = intersect/union
-            mIoU = iou.mean()
-        return mIoU.item(), iou.tolist()
+        return mIoU, iou.tolist()
 
 def test():
     args = parse_args()
@@ -69,6 +54,7 @@ def test():
     # load model
     model = ResNet50_DeepLabV3(num_classes=21, output_stride=args.output_stride)
     model.load_state_dict(torch.load(args.checkpoint))
+    # model = torchvision.models.segmentation.deeplabv3_resnet50(weights=torchvision.models.segmentation.DeepLabV3_ResNet50_Weights)
 
     # load val dataset
     val_preprocess = CoCompose([

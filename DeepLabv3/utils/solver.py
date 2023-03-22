@@ -6,6 +6,8 @@ import copy
 import os
 from torch.utils.tensorboard import SummaryWriter
 
+from utils.metric import SemanticMetric
+
 # import matplotlib
 # matplotlib.use('TkAgg')
 
@@ -43,6 +45,10 @@ class Solver(object):
         self.verbose = kwargs.pop('verbose', True)
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        # self.optimizer = torch.optim.SGD(params=[
+        #     {'params': self.model.classifier.parameters()},
+        #     {'params': self.model.backbone.parameters(), 'lr': self.lr*0.1}
+        # ], lr=self.lr, momentum=0.9)
         self.scheduler = torch.optim.lr_scheduler.PolynomialLR(self.optimizer, total_iters=self.num_epochs, power=0.9)
 
         self.best_params = None
@@ -56,6 +62,9 @@ class Solver(object):
 
         # create logger
         self.logger = SummaryWriter('runs/dlv3_'+self.run_time)
+
+        # evaluation metric
+        self.metric = SemanticMetric(self.num_classes)
 
     def train(self):
         self.model.to(device=self.device)
@@ -117,38 +126,21 @@ class Solver(object):
     def check_accuracy(self):
         self.model.to(self.device)
         self.model.eval()
+        self.metric.reset()
 
         with torch.no_grad():
-            intersect = torch.zeros(self.num_classes, device=self.device)
-            union = torch.zeros(self.num_classes, device=self.device)
-
             for X, y in self.val_loader:
                 X = X.to(device=self.device, dtype=self.dtype)
-                y = y.to(device=self.device, dtype=torch.long)
-                out = self.model(X)['out'].argmax(1)
+                y = y.cpu().numpy().astype(int)
 
-                void_mask = y == 255
-                out[void_mask] = 255
+                pred = self.model(X)['out'].detach().argmax(1).cpu().numpy().astype(int)
 
-                for i_class in range(self.num_classes):
-                    gt_mask = y == i_class
-                    gt = torch.zeros_like(y)
-                    gt[gt_mask] = 1.
+                # update metric
+                self.metric.update(y.flatten(), pred.flatten())
 
-                    out_mask = out == i_class
-                    pred = torch.zeros_like(out)
-                    pred[out_mask] = 1.
+            mIoU, iou = self.metric.get_results()
 
-                    intersect_batch = (gt*pred).sum()
-                    union_batch = (gt+pred).sum() - intersect_batch
-
-                    intersect[i_class] += intersect_batch
-                    union[i_class] += union_batch
-
-            union[union == 0] = 1e-7
-            iou = intersect/union
-            mIoU = iou.mean()
-        return mIoU.item(), iou.tolist()
+        return mIoU, iou.tolist()
     
     def visualize_model(self):
         dataiter = iter(self.train_loader)

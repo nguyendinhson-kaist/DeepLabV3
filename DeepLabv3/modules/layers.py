@@ -30,19 +30,6 @@ class ResNet50_DeepLabV3(nn.Module):
             block = m_dict[block_name]
             m_dict[block_name] = self.make_block(block, dilation_rate=2**(i+1))
 
-
-        # last_block = m_dict['layer4']
-
-        # for name, module in last_block.named_modules():
-        #     remove_stride = ['0.conv2', '0.downsample.0']
-        #     use_dilation = ['1.conv2', '2.conv2']
-        #     if name in remove_stride:
-        #         module.stride = (1,1)
-
-        #     if name in use_dilation:
-        #         module.padding = (2,2)
-        #         module.dilation = (2,2)
-
         self.backbone = nn.Sequential(m_dict)
 
         self.classifier = DeepLabHead(2048, num_classes)
