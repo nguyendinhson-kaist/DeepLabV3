@@ -20,6 +20,8 @@ def parse_args():
     parser.add_argument('output_stride', type=int, choices=[8,16],
         help='output stride of model')
     
+    parser.add_argument('--use-resnet101', action='store_true',
+        help='use resnet101 instead of resnet50')
     parser.add_argument('--gpu-id', type=int, default=0,
         help='select gpu if there are many gpus, be sure id is valid')
 
@@ -52,7 +54,7 @@ def test():
     print("Using",device)
 
     # load model
-    model = ResNet50_DeepLabV3(num_classes=21, output_stride=args.output_stride)
+    model = ResNet_DeepLabV3(num_classes=21, use_resnet101=args.use_resnet101, output_stride=args.output_stride)
     model.load_state_dict(torch.load(args.checkpoint))
     # model = torchvision.models.segmentation.deeplabv3_resnet50(weights=torchvision.models.segmentation.DeepLabV3_ResNet50_Weights)
 

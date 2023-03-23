@@ -1,22 +1,33 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import resnet50, ResNet50_Weights
+from torchvision.models import resnet50, ResNet50_Weights, resnet101, ResNet101_Weights
 from collections import OrderedDict
 from typing import List
 
-class ResNet50_DeepLabV3(nn.Module):
-    def __init__(self, num_classes: int, output_stride=16) -> None:
+class ResNet_DeepLabV3(nn.Module):
+    """DeepLabV3 model with RestNet as backbone
+
+    Arguments:
+    - num_classes: the number of classes
+    - use_resnet101: use resnet101 as backbone, if False, use restnet50. Default: False
+    - output_stride: the output stride of model (only support 16 or 8). Default: 16
+    """
+    def __init__(self, num_classes: int, use_resnet101=False, output_stride=16) -> None:
         super().__init__()
 
         assert output_stride in [8, 16], 'output stride must be 8 or 16'
 
-        origin_resnet50 = resnet50(weights=ResNet50_Weights.DEFAULT)
+        if use_resnet101:
+            origin_resnet = resnet101(weights=ResNet101_Weights.DEFAULT)
+        else:
+            origin_resnet = resnet50(weights=ResNet50_Weights.DEFAULT)
+
         m_list = ['conv1', 'bn1', 'relu', 'maxpool', 'layer1', 'layer2', 'layer3', 'layer4']
         m_dict = OrderedDict()
         
-        train_block = ['layer3', 'layer4']
-        for name, module in origin_resnet50.named_children():
+        train_block = ['layer4']
+        for name, module in origin_resnet.named_children():
             if name in m_list:
                 if name not in train_block:
                     for param in module.parameters():

@@ -16,6 +16,8 @@ def parse_args():
     parser.add_argument('output_stride', type=int, choices=[8,16],
         help='output stride of model')
 
+    parser.add_argument('--use-resnet101', action='store_true',
+        help='use resnet101 instead of resnet50')
     parser.add_argument('-lr', '--learning-rate', type=float, default=1e-3,
         help='the learning rate')
     parser.add_argument('-e', '--num-epochs', type=int, default=5, 
@@ -98,7 +100,7 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     # train model
-    deeplabv3 = ResNet50_DeepLabV3(num_classes=21, output_stride=args.output_stride)
+    deeplabv3 = ResNet_DeepLabV3(num_classes=21, use_resnet101=args.use_resnet101, output_stride=args.output_stride)
     
     solver = Solver(
         deeplabv3, 
