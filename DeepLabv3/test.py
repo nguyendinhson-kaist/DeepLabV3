@@ -1,5 +1,7 @@
 from modules.layers import *
 import torch, torchvision
+import numpy as np
+import random
 
 from torch.utils.data import DataLoader
 from utils.custom_transform import *
@@ -9,8 +11,6 @@ import torchvision.transforms.functional as TF
 from utils.metric import SemanticMetric
 
 import argparse
-
-torch.random.manual_seed(230)
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -24,6 +24,8 @@ def parse_args():
         help='use resnet101 instead of resnet50')
     parser.add_argument('--gpu-id', type=int, default=0,
         help='select gpu if there are many gpus, be sure id is valid')
+    parser.add_argument('--seed', type=int, default=1,
+        help='set random seed')
 
     args = parser.parse_args()
     return args
@@ -52,6 +54,10 @@ def test():
 
     device = torch.device('cuda:'+str(args.gpu_id) if torch.cuda.is_available() else 'cpu')
     print("Using",device)
+
+    torch.random.manual_seed(1)
+    np.random.seed(1)
+    random.seed(1)
 
     # load model
     model = ResNet_DeepLabV3(num_classes=21, use_resnet101=args.use_resnet101, output_stride=args.output_stride)

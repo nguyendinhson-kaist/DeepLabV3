@@ -2,6 +2,9 @@ import torch
 import torchvision
 from torch.utils.data import DataLoader, Subset
 
+import numpy as np
+import random
+
 from dataset import VOCSegmentation
 from utils.custom_transform import *
 from utils.solver import Solver
@@ -30,6 +33,9 @@ def parse_args():
         help='use trainaug dataset for training')
     parser.add_argument('--gpu-id', type=int, default=0,
         help='select gpu if there are many gpus, be sure id is valid')
+    parser.add_argument('--seed', type=int, default=1,
+        help='set random seed')
+
     parser.add_argument('--log-every', type=int, default=25,
         help='print and log loss info at every iter')
     parser.add_argument('-v', '--verbose', action='store_true', 
@@ -48,7 +54,9 @@ def main():
 
     print("Using",device)
 
-    torch.random.manual_seed(230)
+    torch.random.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
 
     # create a color pallette, selecting a color for each class
     palette = torch.tensor([2 ** 25 - 1, 2 ** 15 - 1, 2 ** 21 - 1])
