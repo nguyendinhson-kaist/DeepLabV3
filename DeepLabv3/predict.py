@@ -7,8 +7,8 @@ import torchvision.transforms.functional as TF
 import torch
 
 from dataset import *
-from modules.layers import *
-from utils.custom_transform import *
+from modules import *
+from utils import *
 
 import matplotlib
 matplotlib.use('TkAgg')

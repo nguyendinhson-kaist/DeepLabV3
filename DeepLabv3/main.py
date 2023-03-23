@@ -5,10 +5,10 @@ from torch.utils.data import DataLoader, Subset
 import numpy as np
 import random
 
-from dataset import VOCSegmentation
-from utils.custom_transform import *
-from utils.solver import Solver
-from modules.layers import *
+from dataset import *
+from utils import *
+from modules import *
+
 import argparse
 import sys
 import thop

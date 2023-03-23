@@ -1,14 +1,12 @@
-from modules.layers import *
-import torch, torchvision
+import torch
 import numpy as np
 import random
 
-from torch.utils.data import DataLoader
-from utils.custom_transform import *
-from dataset import VOCSegmentation
-import torchvision.transforms.functional as TF
+from modules import *
+from utils import *
+from dataset import *
 
-from utils.metric import SemanticMetric
+from torch.utils.data import DataLoader
 
 import argparse
 
