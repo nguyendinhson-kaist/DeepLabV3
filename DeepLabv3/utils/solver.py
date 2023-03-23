@@ -1,10 +1,16 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import datetime
 import copy
 import os
 from torch.utils.tensorboard import SummaryWriter
+
+from utils.metric import SemanticMetric
+
+# import matplotlib
+# matplotlib.use('TkAgg')
+
+# import matplotlib.pyplot as plt
 
 class Solver(object):
     """ Class provide a solver instance to train or evaluate a model
@@ -16,10 +22,12 @@ class Solver(object):
     - num_classes: number of classes
 
     Optional arguments:
-    - num_epochs: number of epochs to run for training
-    - lr: learning rate used for optimizer
-    - device: 'cpu' or 'cuda'
-    - dtype: default float 32
+    - num_epochs: number of epochs to run for training. Default: 1
+    - lr: learning rate used for optimizer. Default: 0.001
+    - device: 'cpu' or 'cuda'. Default: 'cpu'
+    - dtype: default: float 32
+    - log_every: num of iters to log value of loss. Default: 25
+    - verbose: print loss in terminal.Default: True
     """
     def __init__(self, model, train_loader, val_loader, num_classes, **kwargs) -> None:
         self.model = model
@@ -32,17 +40,30 @@ class Solver(object):
         self.lr = kwargs.pop('lr', 0.001)
         self.device = kwargs.pop('device', 'cpu')
         self.dtype = kwargs.pop('dtype', torch.float32)
+        self.log_every = kwargs.pop('log_every', 25)
+        self.verbose = kwargs.pop('verbose', True)
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        # self.optimizer = torch.optim.SGD(params=[
+        #     {'params': self.model.classifier.parameters()},
+        #     {'params': self.model.backbone.parameters(), 'lr': self.lr*0.1}
+        # ], lr=self.lr, momentum=0.9)
         self.scheduler = torch.optim.lr_scheduler.PolynomialLR(self.optimizer, total_iters=self.num_epochs, power=0.9)
 
         self.best_params = None
         self.loss_history = []
         self.best_acc = 0
-        self.run_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        self.best_iou = None
+
+        self.run_time = datetime.datetime.now().strftime('%Y%m%d-%H%M%S') \
+            + '_lr' + str(self.lr) \
+            + '_e' + str(self.num_epochs)
 
         # create logger
-        self.logger = SummaryWriter('runs/deeplabv3_experiment_'+self.run_time)
+        self.logger = SummaryWriter('runs/dlv3_'+self.run_time)
+
+        # evaluation metric
+        self.metric = SemanticMetric(self.num_classes)
 
     def train(self):
         self.model.to(device=self.device)
@@ -58,7 +79,7 @@ class Solver(object):
 
                 scores = self.model(X)['out']
                 
-                void_mask = y != 255 # dont calculate loss for void pixels
+                void_mask = y < self.num_classes # only calculate loss for valid classes
                 scores = scores.transpose(0, 1)[:, void_mask]
 
                 loss = F.cross_entropy(scores.transpose(0,1), y[void_mask])
@@ -69,23 +90,27 @@ class Solver(object):
 
                 self.loss_history.append(loss.item())
 
-                if t % 10 == 0:
-                    print('Iteration %d, loss= %.4f' % (t, loss.item()))
-                    print()
+                if t % self.log_every == 0:
+                    if self.verbose:
+                        print('Iteration %d, loss= %.4f' % (t, loss.item()))
+                        print()
+                        
                     self.logger.add_scalar('training loss', loss.item(), e*len(self.train_loader)+t)
 
-            mIoU = self.check_accuracy()
+            mIoU, iou = self.check_accuracy()
             self.logger.add_scalar('mIoU', mIoU, e)
             print('Epoch: %d, mIoU = %f' % (e, mIoU*100))
 
             if mIoU > self.best_acc:
                 self.best_acc = mIoU
+                self.best_iou = iou
                 self.best_params = copy.deepcopy(self.model.state_dict())
 
             self.scheduler.step()
 
         self.model.load_state_dict(self.best_params)
         print('Training finished, best mIoU: %f' % (self.best_acc*100))
+        print('IoU classes: ', self.best_iou)
         self.logger.close()
 
         # create new folder
@@ -100,38 +125,21 @@ class Solver(object):
     def check_accuracy(self):
         self.model.to(self.device)
         self.model.eval()
+        self.metric.reset()
 
         with torch.no_grad():
-            intersect = torch.zeros(self.num_classes, device=self.device)
-            union = torch.zeros(self.num_classes, device=self.device)
-
             for X, y in self.val_loader:
                 X = X.to(device=self.device, dtype=self.dtype)
-                y = y.to(device=self.device, dtype=torch.long)
-                out = self.model(X)['out'].argmax(1)
+                y = y.cpu().numpy().astype(int)
 
-                void_mask = y == 255
-                out[void_mask] = 255
+                pred = self.model(X)['out'].detach().argmax(1).cpu().numpy().astype(int)
 
-                for i_class in range(self.num_classes):
-                    gt_mask = y == i_class
-                    gt = torch.zeros_like(y)
-                    gt[gt_mask] = 1.
+                # update metric
+                self.metric.update(y.flatten(), pred.flatten())
 
-                    out_mask = out == i_class
-                    pred = torch.zeros_like(out)
-                    pred[out_mask] = 1.
+            mIoU, iou = self.metric.get_results()
 
-                    intersect_batch = (gt*pred).sum()
-                    union_batch = (gt+pred).sum() - intersect_batch
-
-                    intersect[i_class] += intersect_batch
-                    union[i_class] += union_batch
-
-            union[union == 0] = 1e-7
-            iou = intersect/union
-            mIoU = iou.mean()
-        return mIoU.item()
+        return mIoU, iou.tolist()
     
     def visualize_model(self):
         dataiter = iter(self.train_loader)

@@ -1,96 +1,83 @@
-from modules.layers import *
-import torch, torchvision
-
-from torchvision.datasets import VOCSegmentation
-from utils.custom_transform import *
-import matplotlib.pyplot as plt
+import torch
 import numpy as np
-import torchvision.transforms.functional as TF
+import random
 
-torch.random.manual_seed(230)
+from modules import *
+from utils import *
+from dataset import *
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from torch.utils.data import DataLoader
 
-print("Using",device)
+import argparse
 
-def check_accuracy(model, num_classes, loader):
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('checkpoint', type=str, 
+        help='your checkpoint (.pth) file. It should be: "out/.../*.pth"')
+    parser.add_argument('output_stride', type=int, choices=[8,16],
+        help='output stride of model')
+    
+    parser.add_argument('--use-resnet101', action='store_true',
+        help='use resnet101 instead of resnet50')
+    parser.add_argument('--gpu-id', type=int, default=0,
+        help='select gpu if there are many gpus, be sure id is valid')
+    parser.add_argument('--seed', type=int, default=1,
+        help='set random seed')
+
+    args = parser.parse_args()
+    return args
+
+def check_accuracy(model, num_classes, loader, device):
+        metric = SemanticMetric(num_classes=num_classes)
         model.to(device)
         model.eval()
-
-        intersect = torch.zeros(num_classes, device=device)
-        union = torch.zeros(num_classes, device=device)
 
         with torch.no_grad():
             for X, y in loader:
                 X = X.to(device=device, dtype=torch.float32)
-                y = y.to(device=device, dtype=torch.long)
-                out = model(X)['out'].argmax(1)
+                y = y.detach().numpy().astype(int)
 
-                void_mask = y == 255
-                out[void_mask] = 255
+                pred = model(X)['out'].detach().argmax(1).cpu().numpy().astype(int)
 
-                for i_class in range(num_classes):
-                    gt_mask = y == i_class
-                    gt = torch.zeros_like(y)
-                    gt[gt_mask] = 1.
+                # update metric
+                metric.update(y.flatten(), pred.flatten())
 
-                    out_mask = out == i_class
-                    pred = torch.zeros_like(out)
-                    pred[out_mask] = 1.
+            mIoU, iou = metric.get_results()
 
-                    intersect_batch = (gt*pred).sum()
-                    union_batch = (gt+pred).sum() - intersect_batch
+        return mIoU, iou.tolist()
 
-                    intersect[i_class] += intersect_batch
-                    union[i_class] += union_batch
+def test():
+    args = parse_args()
 
-        union[union == 0] = 1e-7
-        iou = intersect/union
-        mIoU = iou.mean().cpu()
-        return mIoU.item()
+    device = torch.device('cuda:'+str(args.gpu_id) if torch.cuda.is_available() else 'cpu')
+    print("Using",device)
 
-train_preprocess = CoCompose([
-    CoToTensor,
-    CoNormalize
-])
+    torch.random.manual_seed(1)
+    np.random.seed(1)
+    random.seed(1)
 
-val_preprocess = CoCompose([
-    CoToTensor,
-    CoNormalize
-])
+    # load model
+    model = ResNet_DeepLabV3(num_classes=21, use_resnet101=args.use_resnet101, output_stride=args.output_stride)
+    model.load_state_dict(torch.load(args.checkpoint))
+    # model = torchvision.models.segmentation.deeplabv3_resnet50(weights=torchvision.models.segmentation.DeepLabV3_ResNet50_Weights)
 
-DATASET_PATH = 'dataset/'
+    # load val dataset
+    val_preprocess = CoCompose([
+        CoResize,
+        CoCenterCrop,
+        CoToTensor,
+        CoNormalize
+    ])
 
-train_dataset = VOCSegmentation(root=DATASET_PATH+'train', image_set="train", download=False)
-val_dataset = VOCSegmentation(root=DATASET_PATH+'val', image_set="val", download=False)
+    DATASET_PATH = 'dataset/'
+    val_dataset = VOCSegmentation(root=DATASET_PATH+'val', image_set="val", download=False, transforms=val_preprocess)
+    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=4)
 
-model = torch.load('out/best_model.pth')
+    mIoU, IoU = check_accuracy(model, num_classes=21, loader=val_loader, device=device)
 
-# plot an example
-imgs, lbls = train_dataset[np.random.randint(0, 40)]
+    print('mIoU: %.4f' % (mIoU*100))
+    print('IoU per class: ', IoU)
 
-input_imgs, input_lbls = train_preprocess(imgs, lbls)
-preds = model(input_imgs.unsqueeze(0).to(device))['out'].argmax(1).squeeze(0).cpu()
-
-input_imgs = TF.pil_to_tensor(imgs)
-
-classes = torch.zeros((21, input_imgs.shape[1], input_imgs.shape[2]))
-
-for i in range(21):
-    classes[i] = i
-
-preds_mask = preds == classes
-lbls_mask = input_lbls == classes
-
-gt_img = torchvision.utils.draw_segmentation_masks(input_imgs, lbls_mask)
-pred_img = torchvision.utils.draw_segmentation_masks(input_imgs, preds_mask)
-
-img_grid = torchvision.utils.make_grid([gt_img, pred_img])
-pil_grid = TF.to_pil_image(img_grid)
-plt.imshow(pil_grid)
-plt.show()
-
-
-
-
-
+if __name__ == '__main__':
+    test()
