@@ -75,7 +75,7 @@ To know more usefule arguments, use below command:
 python test.py -h
 ```
 
-## **Visualize some samples from validation set"
+## **Visualize some samples from validation set**
 
 To be more aware of how well your model perform on data, you can use a simple command to print out some results from validation set:
 
