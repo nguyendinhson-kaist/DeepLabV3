@@ -6,9 +6,7 @@ Task: Semantic Segmentation
 
 Paper: [Rethinking Atrous Convolution for Semantic Image Segmentation](https://arxiv.org/abs/1706.05587)
 
-## **Enviroment Preparation**
-
-----
+## **Environment Preparation**
 
 Python: 3.9
 
@@ -25,7 +23,7 @@ To download dataset, you can modify the source code in main.py/predict.py or tes
 - 2012_train: should be in "dataset/train" folder after downloaded.
 - 2012_val: should be in "dataset/val" folder after downloaded.
 
-It is highly recommend to use "2012_trainaug" - an expanded dataset based in "train" set of PASCAL VOC dataset, to get higher accuracy.
+It is highly recommend to use "2012_trainaug" - an expanded dataset based on "train" set of PASCAL VOC dataset, to get higher accuracy.
 
 You can download [here](https://drive.google.com/file/d/1GR-dhj86rY8hVXUu3KTZ6vtd-sgT-Qzr/view?usp=sharing). After unzip the file, put:
 
@@ -33,8 +31,6 @@ You can download [here](https://drive.google.com/file/d/1GR-dhj86rY8hVXUu3KTZ6vt
 - "SegmentationClassAug" folder into "dataset/train/VOCdevkit/VOC2012" folder
 
 ## **Training new model**
-
-----
 
 This is an example of training command:
 
@@ -67,8 +63,6 @@ Tensorboard will be available at "http://localhost:PORT"
 
 ## **Validate model**
 
-----
-
 Run the following command to get mIoU and class IoU of a trained model (using checkpoint file at CP_PATH):
 
 ```bash
@@ -83,8 +77,6 @@ python test.py -h
 
 ## **Visualize some samples from validation set"
 
-----
-
 To be more aware of how well your model perform on data, you can use a simple command to print out some results from validation set:
 
 ```bash
@@ -96,8 +88,6 @@ Also use argument "-h" to know more options.
 We also provide some pretrained models, you can check out them [here](https://drive.google.com/drive/folders/1FxDBOgIpYUJrxB-4wTu0A60_BuchCXYR?usp=sharing)
 
 ## **Some results**
-
-----
 
 |  Model              | Batch Size  | train/val OS  |  mIoU     |
 | :--------           | :---------: | :-----------: | :-------: |
